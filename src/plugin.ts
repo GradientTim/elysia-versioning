@@ -67,11 +67,18 @@ function versioning<TVersions extends Record<string, Elysia>>(
           const url = new URL(request.url)
           const path = url.pathname
 
-          const pathParts = path
-            .split('/')
-            .filter((element: string) => element.trim().length > 0)
+          let firstPath: string
+          const firstSlashIndex = path.indexOf('/', 1)
 
-          const firstPath = pathParts[0] ?? path
+          if (firstSlashIndex === -1) {
+            firstPath = path.substring(1)
+          } else {
+            firstPath = path.substring(1, firstSlashIndex)
+          }
+
+          if (firstPath.length === 0) {
+            firstPath = '/'
+          }
 
           /*
            * When the first path is '/' or not matches one of the configured versions,
