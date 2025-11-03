@@ -1,11 +1,7 @@
 import type Elysia from 'elysia'
 
-import type {
-  CustomError,
-  HeaderError,
-  QueryError,
-  UriError,
-} from './errors.ts'
+import type { CustomError, HeaderError, QueryError, UriError } from './errors.ts'
+import type { CustomStatus, HeaderStatus, QueryStatus, UriStatus } from './status.ts'
 
 export type BaseVersioningOptions = VersioningOptions<Record<string, Elysia>>
 
@@ -42,24 +38,52 @@ export interface VersioningOptions<TVersions extends Record<string, Elysia>> {
 }
 
 export type VersioningStrategy =
-  | {
-      type: 'URI'
-      redirectDefault?: boolean
-      onError?: (error: UriError) => void
-    }
-  | {
-      type: 'QUERY'
-      queryName?: string
-      redirectDefault?: boolean
-      onError?: (error: QueryError) => void
-    }
-  | {
-      type: 'HEADER'
-      headerName?: string
-      onError?: (error: HeaderError) => void
-    }
-  | {
-      type: 'CUSTOM'
-      extract: (request: Request, options: BaseVersioningOptions) => Elysia
-      onError?: (error: CustomError) => void
-    }
+  |
+  {
+    type: 'URI',
+    redirectDefault?: boolean,
+    /**
+     * @deprecated Use the `onStatus` and `onCatch` handler instead.
+     * This function will be removed in near future.
+     */
+    onError?: (error: UriError) => void,
+    onStatus?: (status: UriStatus) => void,
+    onCatch?: (error: Error) => void,
+  }
+  |
+  {
+    type: 'QUERY',
+    queryName?: string,
+    redirectDefault?: boolean,
+    /**
+     * @deprecated Use the `onStatus` and `onCatch` handler instead.
+     * This function will be removed in near future.
+     */
+    onError?: (error: QueryError) => void,
+    onStatus?: (status: QueryStatus) => void,
+    onCatch?: (error: Error) => void,
+  }
+  |
+  {
+    type: 'HEADER',
+    headerName?: string,
+    /**
+     * @deprecated Use the `onStatus` and `onCatch` handler instead.
+     * This function will be removed in near future.
+     */
+    onError?: (error: HeaderError) => void,
+    onStatus?: (status: HeaderStatus) => void,
+    onCatch?: (error: Error) => void,
+  }
+  |
+  {
+    type: 'CUSTOM',
+    extract: (request: Request, options: BaseVersioningOptions) => Elysia,
+    /**
+     * @deprecated Use the `onStatus` and `onCatch` handler instead.
+     * This function will be removed in near future.
+     */
+    onError?: (error: CustomError) => void,
+    onStatus?: (status: CustomStatus) => void,
+    onCatch?: (error: Error) => void,
+  }
