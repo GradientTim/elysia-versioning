@@ -3,18 +3,15 @@
  */
 export class UriError extends Error {}
 
-
 /**
  * @deprecated
  */
 export class QueryError extends Error {}
 
-
 /**
  * @deprecated
  */
 export class HeaderError extends Error {}
-
 
 /**
  * @deprecated
