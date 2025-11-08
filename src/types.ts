@@ -1,17 +1,6 @@
 import type Elysia from 'elysia'
 
-import type {
-  CustomError,
-  HeaderError,
-  QueryError,
-  UriError,
-} from './errors.ts'
-import type {
-  CustomStatus,
-  HeaderStatus,
-  QueryStatus,
-  UriStatus,
-} from './status.ts'
+import type { HeaderStatus, QueryStatus } from './status.ts'
 
 export type BaseVersioningOptions = VersioningOptions<Record<string, Elysia>>
 
@@ -50,46 +39,60 @@ export interface VersioningOptions<TVersions extends Record<string, Elysia>> {
 export type VersioningStrategy =
   | {
       type: 'URI'
-      redirectDefault?: boolean
       /**
-       * @deprecated Use the `onStatus` and `onCatch` handler instead.
-       * This function will be removed in near future.
+       * When set to true, requests that does not start with one of the versions
+       * will go through the default version handler.
+       *
+       * @example GET / will be treated as GET /v1
+       * @defaultValue `true`
        */
-      onError?: (error: UriError) => void
-      onStatus?: (status: UriStatus) => void
-      onCatch?: (error: Error) => void
+      redirectDefault?: boolean
     }
   | {
       type: 'QUERY'
+      /**
+       * The name of the query where the version should be included
+       * @default Uses the value from `options.prefix`
+       */
       queryName?: string
+      /**
+       * When set to true, requests that have not the version query parameter
+       * will go through the default version handler.
+       *
+       * @example GET / will be treated as GET /?v=1
+       * @defaultValue `true`
+       */
       redirectDefault?: boolean
       /**
-       * @deprecated Use the `onStatus` and `onCatch` handler instead.
-       * This function will be removed in near future.
+       * Will be called when the plugin is not able to handle any registered version handler.
+       *
+       * @param status
        */
-      onError?: (error: QueryError) => void
       onStatus?: (status: QueryStatus) => void
-      onCatch?: (error: Error) => void
     }
   | {
       type: 'HEADER'
-      headerName?: string
       /**
-       * @deprecated Use the `onStatus` and `onCatch` handler instead.
-       * This function will be removed in near future.
+       * The name of the header which should be used to receive the version value from.
+       *
+       * @default `X-Version`
        */
-      onError?: (error: HeaderError) => void
+      headerName?: string
+      redirectDefault?: boolean
+      /**
+       * Will be called when the plugin is not able to handle any registered version handler.
+       *
+       * @param status
+       */
       onStatus?: (status: HeaderStatus) => void
-      onCatch?: (error: Error) => void
     }
   | {
       type: 'CUSTOM'
-      extract: (request: Request, options: BaseVersioningOptions) => Elysia
       /**
-       * @deprecated Use the `onStatus` and `onCatch` handler instead.
-       * This function will be removed in near future.
+       * The function to return an Elysia instance from a raw request.
+       *
+       * @param request
+       * @param options
        */
-      onError?: (error: CustomError) => void
-      onStatus?: (status: CustomStatus) => void
-      onCatch?: (error: Error) => void
+      extract: (request: Request, options: BaseVersioningOptions) => Elysia
     }

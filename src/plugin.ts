@@ -1,17 +1,6 @@
 import Elysia from 'elysia'
 import { mergeDeep } from 'elysia/utils'
 
-import {
-  CustomUnexpectedError,
-  HeaderUnexpectedError,
-  HeaderUnknownVersionError,
-  HeaderWrongPrefixError,
-  QueryUnexpectedError,
-  QueryUnknownVersionError,
-  UriUnexpectedError,
-  UriUnknownVersionError,
-} from './errors.ts'
-
 import type { BaseVersioningOptions, VersioningOptions } from './types.ts'
 
 export const defaultOptions: BaseVersioningOptions = {
@@ -36,8 +25,8 @@ function versioning<TVersions extends Record<string, Elysia>>(
     seed: _options,
   })
 
-  const versions = Object.entries(_options.versions)
-  const versionKeys = versions.map(([key]) => key)
+  const versions = _options.versions
+  const versionKeys = Object.keys(versions)
 
   const prefix = _options.prefix.trim()
   let defaultVersion = _options.defaultVersion.toString().trim()
@@ -49,18 +38,22 @@ function versioning<TVersions extends Record<string, Elysia>>(
     }
   }
 
+  const defaultHandler = versions[defaultVersion]
+  if (!defaultHandler) {
+    throw new Error(
+      `Unable to find handler for default version '${defaultVersion}'`,
+    )
+  }
+
   const versionRegex = new RegExp(
-    `(${versions.map(([version]) => `${prefix}${version}`).join('|')})`,
+    `(${versionKeys.map(([version]) => `${prefix}${version}`).join('|')})`,
   )
 
   switch (_options.strategy.type) {
     case 'URI': {
-      const errorFunction = _options.strategy.onError
-      const statusFunction = _options.strategy.onStatus
-      const catchFunction = _options.strategy.onCatch
       const redirectDefault = _options.strategy.redirectDefault ?? true
 
-      for (const [version, handler] of versions) {
+      for (const [version, handler] of Object.entries(versions)) {
         plugin.group(`${prefix}${version}`, (app) => app.use(handler))
       }
 
@@ -95,20 +88,7 @@ function versioning<TVersions extends Record<string, Elysia>>(
            * GET / will be treated as /v2/
            */
           if (firstPath === '/' || firstPath.match(versionRegex) === null) {
-            const handler = _options.versions[defaultVersion]
-            if (!handler) {
-              errorFunction?.(new UriUnknownVersionError(defaultVersion))
-              statusFunction?.('unknown_version')
-              return
-            }
-
-            try {
-              return await handler.handle(request)
-            } catch (error: unknown) {
-              errorFunction?.(new UriUnexpectedError(error as Error))
-              catchFunction?.(error as Error)
-              statusFunction?.('unexpected')
-            }
+            return await defaultHandler.handle(request)
           }
         })
       }
@@ -118,9 +98,7 @@ function versioning<TVersions extends Record<string, Elysia>>(
     case 'QUERY': {
       const queryName = _options.strategy.queryName ?? prefix
       const redirectDefault = _options.strategy.redirectDefault ?? true
-      const errorFunction = _options.strategy.onError
       const statusFunction = _options.strategy.onStatus
-      const catchFunction = _options.strategy.onCatch
 
       plugin.onRequest(async ({ request }) => {
         const url = new URL(request.url)
@@ -128,37 +106,17 @@ function versioning<TVersions extends Record<string, Elysia>>(
 
         const versionQueryParameter = searchParameters.get(queryName)
         if (versionQueryParameter) {
-          const handler = _options.versions[versionQueryParameter]
+          const handler = versions[versionQueryParameter]
           if (!handler) {
-            errorFunction?.(new QueryUnknownVersionError(versionQueryParameter))
             statusFunction?.('unknown_version')
             return
           }
 
-          try {
-            return await handler.handle(request)
-          } catch (error: unknown) {
-            errorFunction?.(new QueryUnexpectedError(error as Error))
-            catchFunction?.(error as Error)
-            statusFunction?.('unexpected')
-          }
+          return await handler.handle(request)
         }
 
         if (redirectDefault) {
-          const defaultHandler = _options.versions[defaultVersion]
-          if (!defaultHandler) {
-            errorFunction?.(new QueryUnknownVersionError(defaultVersion))
-            statusFunction?.('unknown_version')
-            return
-          }
-
-          try {
-            return await defaultHandler.handle(request)
-          } catch (error: unknown) {
-            errorFunction?.(new QueryUnexpectedError(error as Error))
-            catchFunction?.(error as Error)
-            statusFunction?.('unexpected')
-          }
+          return await defaultHandler.handle(request)
         }
       })
       break
@@ -166,36 +124,33 @@ function versioning<TVersions extends Record<string, Elysia>>(
 
     case 'HEADER': {
       const headerName = _options.strategy.headerName ?? 'X-Version'
-      const errorFunction = _options.strategy.onError
+      const redirectDefault = _options.strategy.redirectDefault ?? true
       const statusFunction = _options.strategy.onStatus
-      const catchFunction = _options.strategy.onCatch
 
       plugin.onRequest(async ({ request }) => {
         const header = request.headers.get(headerName)
-        let version: string = defaultVersion
 
         if (header) {
-          if (!header.startsWith(prefix)) {
-            errorFunction?.(new HeaderWrongPrefixError(prefix, header))
+          let version: string = header
+          if (!version.startsWith(prefix)) {
             statusFunction?.('wrong_prefix')
             return
           }
-          version = header.replace(prefix, '')
-        }
 
-        const handler = _options.versions[version]
-        if (!handler) {
-          errorFunction?.(new HeaderUnknownVersionError(version))
-          statusFunction?.('unknown_version')
-          return
-        }
+          const untilIndex = version.indexOf(prefix) + prefix.length
+          version = version.substring(untilIndex)
 
-        try {
+          const handler = versions[version]
+          if (!handler) {
+            statusFunction?.('unknown_version')
+            return
+          }
+
           return await handler.handle(request)
-        } catch (error: unknown) {
-          errorFunction?.(new HeaderUnexpectedError(error as Error))
-          catchFunction?.(error as Error)
-          statusFunction?.('unexpected')
+        }
+
+        if (redirectDefault) {
+          return defaultHandler.handle(request)
         }
       })
       break
@@ -203,21 +158,12 @@ function versioning<TVersions extends Record<string, Elysia>>(
 
     case 'CUSTOM': {
       const extractFunction = _options.strategy.extract
-      const errorFunction = _options.strategy.onError
-      const statusFunction = _options.strategy.onStatus
-      const catchFunction = _options.strategy.onCatch
 
       plugin.onRequest(async ({ request }) => {
-        try {
-          return await extractFunction(
-            request,
-            _options as unknown as BaseVersioningOptions,
-          ).handle(request)
-        } catch (error: unknown) {
-          errorFunction?.(new CustomUnexpectedError(error as Error))
-          catchFunction?.(error as Error)
-          statusFunction?.('unexpected')
-        }
+        return await extractFunction(
+          request,
+          _options as unknown as BaseVersioningOptions,
+        ).handle(request)
       })
       break
     }
