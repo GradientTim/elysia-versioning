@@ -99,8 +99,8 @@ new Elysia()
   }))
   .listen(3000)
 
-// curl -H "X-API-Version: 1" http://localhost:3000 -> v1
-// curl -H "X-API-Version: 2" http://localhost:3000 -> v2
+// curl -H "X-API-Version: v1" http://localhost:3000 -> v1
+// curl -H "X-API-Version: v2" http://localhost:3000 -> v2
 ```
 
 ---
